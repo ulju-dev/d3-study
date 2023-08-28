@@ -2,8 +2,6 @@ async function draw() {
   // Data
   const dataset = await d3.json('data.json');
 
-  const xAccessor = d => d.currently.humidity;
-
   // Dimensions
   let dimensions = {
     width: 800,
@@ -28,14 +26,8 @@ async function draw() {
       `translate(${dimensions.margins}, ${dimensions.margins})`
     );
 
-  // Scales
-  const xScale = d3
-    .scaleLinear()
-    .domain(d3.extent(dataset, xAccessor))
-    .range([0, dimensions.ctrWidth])
-    .nice();
-
   // Draw bars
+  /*
   ctr
     .selectAll('rect')
     .data(dataset)
@@ -44,6 +36,72 @@ async function draw() {
     .attr('height', 100)
     .attr('x', d => xScale(xAccessor(d)))
     .attr('y', 0);
+  */
+
+  const labelsGroup = ctr.append('g').classed('bar-labels', true);
+
+  const xAxisGroup = ctr
+    .append('g')
+    .style('transform', `translateY(${dimensions.ctrHeight}px)`);
+
+  function histogram(metric) {
+    const xAccessor = d => d.currently[metric];
+    const yAccessor = d => d.length;
+
+    // Scales
+    const xScale = d3
+      .scaleLinear()
+      .domain(d3.extent(dataset, xAccessor))
+      .range([0, dimensions.ctrWidth])
+      .nice();
+
+    const bin = d3
+      .bin()
+      .domain(xScale.domain())
+      .value(xAccessor)
+      .thresholds(10);
+
+    const newDataset = bin(dataset);
+    const padding = 1;
+
+    const yScale = d3
+      .scaleLinear()
+      .domain([0, d3.max(newDataset, yAccessor)])
+      .range([dimensions.ctrHeight, 0])
+      .nice();
+
+    // Draw histogram
+    ctr
+      .selectAll('rect')
+      .data(newDataset)
+      .join('rect')
+      .attr('width', d => d3.max([0, xScale(d.x1) - xScale(d.x0) - padding]))
+      .attr('height', d => dimensions.ctrHeight - yScale(yAccessor(d)))
+      .attr('x', d => xScale(d.x0))
+      .attr('y', d => yScale(yAccessor(d)))
+      .attr('fill', '#01c5c4');
+
+    labelsGroup
+      .selectAll('text')
+      .data(newDataset)
+      .join('text')
+      .attr('x', d => xScale(d.x0) + (xScale(d.x1) - xScale(d.x0)) / 2)
+      .attr('y', d => yScale(yAccessor(d)) - 10)
+      .text(yAccessor);
+
+    // Draw Axis
+    const xAxis = d3.axisBottom(xScale);
+
+    xAxisGroup.call(xAxis);
+  }
+
+  d3.select('#metric').on('change', function (e) {
+    e.preventDefault();
+
+    histogram(this.value);
+  });
+
+  histogram('humidity');
 }
 
 draw();
